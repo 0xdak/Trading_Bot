@@ -3,6 +3,30 @@
 
 #include <curl/curl.h>
 #include <iostream>
+#include <vector>
+
+
+class TicketPrice {
+public:
+    std::string symbol;
+    std::string price;
+
+    friend std::ostream& operator<<(std::ostream& os, const TicketPrice& ticketPrice) {
+        os << "TicketPrice { " << std::endl;
+        os << "\tSymbol\t: " << ticketPrice.symbol << std::endl;
+        os << "\tPrice\t: " << ticketPrice.price << std::endl;
+        os << "}" << std::endl;
+        return os;
+    }
+};
+
+
+
+
+typedef std::vector<TicketPrice> TicketPrices;
+
+
+
 
 
 class EndpointHandler
@@ -19,11 +43,13 @@ public:
 
     EndpointHandler();
 
-    std::string GetTickerPrice(); // JSON VERİSİ DÖNDERECEK deserialization
+    TicketPrice GetTickerPrice(std::string symbol);
+    TicketPrices GetTickerPrices();
 
 private:
    Endpoints endpoints;
    std::string CURL_GET_REQUEST(std::string url);
 };
+
 
 #endif // ENDPOINTHANDLER_H

@@ -14,6 +14,8 @@
 #include "binacpp_websocket.h"
 #include <json/json.h>
 
+#include "iomanip"
+#include <unistd.h>
 
 #include "Candle.h"
 
@@ -156,23 +158,39 @@ int main() {
 	BinaCPP::init(api_key,secret_key);
 
 
-	Json::Value result;
-	long recvWindow = 10000;
-	BinaCPP::get_account(recvWindow, result);
-	std::cout << result << std::endl;
-//	for ( int i  = 0 ; i < result["balances"].size() ; i++ ) {
-//		string symbol = result["balances"][i]["asset"].asString();
-//		userBalance[symbol]["f"] = atof( result["balances"][i]["free"].asString().c_str() );
-//		userBalance[symbol]["l"] = atof( result["balances"][i]["locked"].asString().c_str() );
-//	}
 
 
 
+	while(true) {
+		Json::Value result;
+		long recvWindow = 10000;
+		BinaCPP::get_account(recvWindow, result);
+	//	std::cout << result << std::endl;
+
+		system("CLS");
+
+		std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
+		std::cout << setw(6) << "asset";
+		std::cout << setw(11) << "price";
+		std::cout << setw(11) << "free";
+		std::cout << setw(7) << "locked";
+		std::cout << std::endl;
+
+		for ( int i  = 0 ; i < result["balances"].size() ; i++ ) {
+			Balance balance = Balance(result["balances"][i]);
+
+			std::cout << setw(6) << fixed << setprecision(3) << balance.Asset;
+			std::cout << setw(11) << balance.Free + balance.Locked;
+			std::cout << setw(11) << balance.Free;
+			std::cout << setw(7) << balance.Locked;
+			std::cout <<std::endl;
+		}
+		std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
+
+		sleep(1);
 
 
-
-
-
+	}
 
 //	BinaCPP::start_userDataStream(result );
 //	cout << result << endl;

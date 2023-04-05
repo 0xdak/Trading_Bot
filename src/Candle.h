@@ -41,4 +41,27 @@ public:
     }
 };
 
+
+class Balance {
+public:
+	std::string Asset  = "";
+	double      Free   = -1;
+	double 		Locked = -1;
+
+
+	Balance();
+	Balance(Json::Value &result);
+	virtual ~Balance();
+
+
+    friend std::ostream& operator<<(std::ostream& os, const Balance& balance) {
+        os << "Balance { " << std::endl;
+        os << "\tAsset\t: " << balance.Asset << std::endl;
+        os << "\tFree\t: " << balance.Free << std::endl;
+        os << "\tLocked\t: " << balance.Locked << std::endl;
+        os << "}" << std::endl;
+        return os;
+    }
+};
+
 #endif /* CANDLE_H_ */

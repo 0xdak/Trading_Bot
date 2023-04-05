@@ -29,3 +29,23 @@ Candle::~Candle() {
 	// TODO Auto-generated destructor stub
 }
 
+
+
+Balance::Balance() {
+
+}
+
+// kline json'unun geldigi varsayiliyor
+Balance::Balance(Json::Value &result) {
+//	std::cout << "Candle Constructor(Json::Value &result)" << std::endl;
+
+	this->Asset  = result["asset"].asString().c_str();
+	this->Free 	 = std::stod(result["free"].asString().c_str());
+	this->Locked = std::stod(result["locked"].asString().c_str());
+
+}
+
+Balance::~Balance() {
+	// TODO Auto-generated destructor stub
+}
+

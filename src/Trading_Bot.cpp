@@ -127,6 +127,8 @@ int closed_candle_len = 0;
 // 2 sn'de bir?? candle gelir, bu candle kapanmışsa kapanan candle'lara ekler (RSI hesaplanması için)
 int ws_klines_onData( Json::Value &json_result ) {
 
+	system("CLS");
+
 	Candle candle = Candle(json_result["k"]);
 //	std::cout << candle << std::endl;
 	if (candle.IsCandleClosed == 1) { // MUM KAPANDIYSA
@@ -142,8 +144,32 @@ int ws_klines_onData( Json::Value &json_result ) {
 			double rsi = calc_rsi(0, closed_candle_len-1, closed_prices);
 			std::cout << "RSI: " << rsi << std::endl;
 		}
-
 	}
+
+	// TODO her saniye account bilgisini çekmektense en başta,işlem yaptıktan sonra ve belli periyotta çekmek yeterli olur mu
+	Json::Value result;
+	long recvWindow = 10000;
+	BinaCPP::get_account(recvWindow, result);
+//	std::cout << result << std::endl;
+
+
+	std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
+	std::cout << setw(6) << "asset";
+	std::cout << setw(11) << "price";
+	std::cout << setw(11) << "free";
+	std::cout << setw(7) << "locked";
+	std::cout << std::endl;
+
+	for ( int i  = 0 ; i < result["balances"].size() ; i++ ) {
+		Balance balance = Balance(result["balances"][i]);
+
+		std::cout << setw(6) << fixed << setprecision(3) << balance.Asset;
+		std::cout << setw(11) << balance.Free + balance.Locked;
+		std::cout << setw(11) << balance.Free;
+		std::cout << setw(7) << balance.Locked;
+		std::cout <<std::endl;
+	}
+	std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
 //	std::cout << candle << std::endl;
 }
 int ws_userStream_OnData( Json::Value &json_result ) {
@@ -159,65 +185,16 @@ int main() {
 
 
 
-
-
-	while(true) {
-		Json::Value result;
-		long recvWindow = 10000;
-		BinaCPP::get_account(recvWindow, result);
-	//	std::cout << result << std::endl;
-
-		system("CLS");
-
-		std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
-		std::cout << setw(6) << "asset";
-		std::cout << setw(11) << "price";
-		std::cout << setw(11) << "free";
-		std::cout << setw(7) << "locked";
-		std::cout << std::endl;
-
-		for ( int i  = 0 ; i < result["balances"].size() ; i++ ) {
-			Balance balance = Balance(result["balances"][i]);
-
-			std::cout << setw(6) << fixed << setprecision(3) << balance.Asset;
-			std::cout << setw(11) << balance.Free + balance.Locked;
-			std::cout << setw(11) << balance.Free;
-			std::cout << setw(7) << balance.Locked;
-			std::cout <<std::endl;
-		}
-		std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
-
-		sleep(1);
-
-
+	TA_RetCode rc = TA_Initialize();
+	if (rc != TA_SUCCESS){
+		std::cerr << "RSI::RSI: error on TA_Initialize" << std::endl;
+		return 0;
 	}
 
-//	BinaCPP::start_userDataStream(result );
-//	cout << result << endl;
-//
-//	string ws_path = string("/ws/");
-//	ws_path.append( result["listenKey"].asString() );
-//	std::cout << ws_path << std::endl;
-//
-//
-//
-//	BinaCPP_websocket::init();
-// 	BinaCPP_websocket::connect_endpoint( ws_userStream_OnData , ws_path.c_str() );
-//	BinaCPP_websocket::enter_event_loop();
 
-
-
-
-//	TA_RetCode rc = TA_Initialize();
-//	if (rc != TA_SUCCESS){
-//		std::cerr << "RSI::RSI: error on TA_Initialize" << std::endl;
-//		return 0;
-//	}
-//
-//
-//	BinaCPP_websocket::init();
-//	BinaCPP_websocket::connect_endpoint( ws_klines_onData ,"/ws/btceur@kline_1s");
-//	BinaCPP_websocket::enter_event_loop();
+	BinaCPP_websocket::init();
+	BinaCPP_websocket::connect_endpoint( ws_klines_onData ,"/ws/btceur@kline_1s");
+	BinaCPP_websocket::enter_event_loop();
 
 
 	return 0;

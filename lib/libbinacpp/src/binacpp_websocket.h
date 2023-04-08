@@ -16,7 +16,7 @@
 #include <libwebsockets.h>
 
 
-#define TESTNET 1
+#define TESTNET 0
 
 #if TESTNET
 	#define BINANCE_WS_HOST "testnet.binance.vision"

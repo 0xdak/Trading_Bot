@@ -55,65 +55,11 @@ map<long,map<string,double>> klinesCache; // key,value
 
 map<int,Candle> closed_candles; // kapanan mumlar
 double closed_prices[100];
-//double def_closed_prices[30] = {18.756, 18.756, 18.756, 18.756, 18.756, 18.756, 18.756, 18.759, 18.759, 18.756, 18.746, 18.747, 18.744, 18.743, 18.742, 18.756, 18.756, 18.756, 18.756, 18.756, 18.756, 18.756, 18.759, 18.759, 18.756, 18.746, 18.747, 18.744, 18.743, 18.742};
-//double def_closed_prices[30] = {1.18676, 1.18618, 1.18712, 1.18791, 18.756, 18.756, 18.756, 18.759, 18.759, 18.756, 18.746, 18.747, 18.744, 18.743, 18.742, 18.756, 18.756, 18.756, 18.756, 18.756, 18.756, 18.756, 18.759, 18.759, 18.756, 18.746, 18.747, 18.744, 18.743, 18.742};
-double def_closed_prices[23] = {1.18676,
-								1.18618,
-								1.18712,
-								1.18791,
-
-								1.18578,
-								1.18484,
-								1.18566,
-								1.18535,
-
-								1.1858,
-								1.18452,
-								1.1846,
-								1.18476,
-
-								1.18508,
-								1.1844,
-								1.18382,
-								1.18548,
-
-								1.18648,
-								1.18574,
-								1.1854,
-								1.18575,
-
-								1.18806,
-								1.18961,
-								1.19055,};
 int RSI_PERIOD = 14;
 
 TA_RetCode rc;
 
 int closed_candle_len = 0;
-
-double new_closed_prices[23];
-
-int counter = 0;
-void price_event(double closed_price) {
-	new_closed_prices[counter++] = closed_price;
-	if (counter > RSI_PERIOD) {
-		int outBegIdx;
-		int outNBElement;
-		double outReal[100] = {0,};
-
-		TA_RetCode rc = TA_RSI(0, counter-1, &new_closed_prices[0], RSI_PERIOD, &outBegIdx, &outNBElement, outReal);
-		if (rc != TA_SUCCESS){
-			std::cerr << "RSI::RSI: error on TA_RSI" << std::endl;
-		}
-	}
-}
-
-void send_price_event() {
-	for (int var = 0; var < sizeof(def_closed_prices)/sizeof(double); ++var) {
-		price_event(def_closed_prices[var]);
-
-	}
-}
 
 void print_closed_candles(){
 	std::cout << "==================================" << endl;

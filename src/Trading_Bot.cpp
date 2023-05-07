@@ -39,6 +39,13 @@
 #include "iomanip"
 #include <unistd.h>
 
+#include "winsock2.h"
+#include "windows.h"
+#include "ws2tcpip.h"
+
+#include <thread>
+
+#include "string.h"
 #include "Candle.h"
 
 #define TESTNET 1 // testnet api key'leri ve endpoint'leri farklı oluyor
@@ -51,6 +58,8 @@
 	#define SEC_KEY "z2FiYxCNRueHbtvrUBHLMGTqTMfY2g2zdXBMLsnt8N5pnZvEgBqzauvJ0Sremngf"
 #endif
 
+#define portno 5000
+
 map<long,map<string,double>> klinesCache; // key,value
 
 map<int,Candle> closed_candles; // kapanan mumlar
@@ -61,16 +70,113 @@ TA_RetCode rc;
 
 int closed_candle_len = 0;
 
-void print_closed_candles(){
-	std::cout << "==================================" << endl;
+SOCKET s;
+WSADATA w;
 
-	map<int,Candle>::iterator it_i;
+std::string closed_candles_to_json(const std::map<int, Candle>& myMap) {
+	Json::Value root;
+	// myMap veri yapısını dönüştürmek istiyoruz
 
-	for (it_i = closed_candles.begin() ; it_i != closed_candles.end() ; it_i++ ) {
-		int index = (*it_i).first;
-		Candle candleObj = (*it_i).second;
-		std::cout << candleObj << std::endl;
+	for (const auto& [key, value] : myMap)
+	    {
+	        Json::Value candle(Json::objectValue);
+	        candle["Symbol"] = value.Symbol;
+	        candle["OpenPrice"] = value.OpenPrice;
+	        candle["ClosePrice"] = value.ClosePrice;
+	        candle["HighPrice"] = value.HighPrice;
+	        candle["LowPrice"] = value.LowPrice;
+	        candle["Volume"] = value.Volume;
+	        candle["IsCandleClosed"] = value.IsCandleClosed;
+	        root.append(candle);
+	    }
+	Json::StreamWriterBuilder builder;
+	builder["indentation"] = "    "; // Opsiyonel: Girinti seviyesi
+	std::string jsonStr = Json::writeString(builder, root);
+	return jsonStr;
+}
+
+
+//LISTENONPORT – Listens on a specified port for incoming connections
+//or data
+
+int ListenOnPort()
+{
+    int error = WSAStartup(0x0202, &w);  // Fill in WSA info
+
+    if (error)
+    {
+        return false;                     //For some reason we couldn't start Winsock
+    }
+
+    if (w.wVersion != 0x0202)             //Wrong Winsock version?
+    {
+        WSACleanup ();
+        return false;
+    }
+
+    SOCKADDR_IN addr;                     // The address structure for a TCP socket
+
+    addr.sin_family = AF_INET;            // Address family
+    addr.sin_port = htons (portno);       // Assign port to this socket
+
+    addr.sin_addr.s_addr = htonl (INADDR_ANY);
+
+    s = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP); // Create socket
+
+    if (s == INVALID_SOCKET)
+    {
+        return false;                     //Don't continue if we couldn't create a //socket!!
+    }
+
+    if (bind(s, (LPSOCKADDR)&addr, sizeof(addr)) == SOCKET_ERROR)
+    {
+        return false;
+    }
+
+//    listen(s, SOMAXCONN);
+    if (listen(s, SOMAXCONN) < 0){
+      std::cout << "Listen Failed\n";
+      exit(EXIT_FAILURE);
+    }
+
+
+    // istekler kabul ediliyor.
+	struct sockaddr_in client_addr;
+	socklen_t boyut = sizeof(client_addr);
+	int new_client = accept(s, (struct sockaddr*)&client_addr, &boyut);
+	if(new_client < 0){
+		fprintf(stderr, "İsteklerin kabulü sırasında hata oluştu.");
+		return 1;
 	}
+	char client_ip[50];
+    inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, 50);
+    fprintf(stdout, client_ip);
+
+	while(1){
+		vector<char> buf(256);
+		int veri_boyutu = recv(new_client, buf.data(), buf.size(), 0);
+		if(veri_boyutu > 0){
+		    std::cout << buf.data() << std::endl;
+		    if (strcmp(buf.data(),"getTickets")==0){
+		    	send(new_client, closed_candles_to_json(closed_candles).c_str(), 1024, 0);
+		    }
+
+		} else {
+			return 1;
+		}
+	}
+
+
+
+
+
+
+
+    close(new_client);
+    close(s);
+
+    return true;
+    //Don't forget to clean up with CloseConnection()!
 }
 
 
@@ -233,6 +339,11 @@ int ws_userStream_OnData( Json::Value &json_result ) {
 }
 
 int main() {
+
+    std::thread myThread(ListenOnPort);
+//	if (ret == false){
+//		std::cout << "Failed when trying to listening port" << std::endl;
+//	}
 
 	std::string api_key = API_KEY;
 	std::string secret_key = SEC_KEY;

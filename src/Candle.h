@@ -19,6 +19,7 @@ public:
 	double HighPrice 	  = -1;
 	double LowPrice 	  = -1;
 	double Volume 		  = -1;
+	int64_t CloseTime = 0;
 	bool   IsCandleClosed = -1;
 
 
@@ -35,6 +36,7 @@ public:
         os << "\tHigh Price\t: " << candle.HighPrice << std::endl;
         os << "\tLow Price\t: " << candle.LowPrice << std::endl;
         os << "\tVolume\t: " << candle.Volume << std::endl;
+        os << "\tCloseTime\t: " << candle.CloseTime << std::endl;
         os << "\tIs Candle Closed\t: " << candle.IsCandleClosed << std::endl;
         os << "}" << std::endl;
         return os;

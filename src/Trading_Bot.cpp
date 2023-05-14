@@ -48,6 +48,9 @@
 #include "string.h"
 #include "Candle.h"
 
+#include "indicators.h"
+#include "SocketConnection.h"
+
 #define TESTNET 1 // testnet api key'leri ve endpoint'leri farklı oluyor
 
 #if TESTNET
@@ -58,192 +61,18 @@
 	#define SEC_KEY "z2FiYxCNRueHbtvrUBHLMGTqTMfY2g2zdXBMLsnt8N5pnZvEgBqzauvJ0Sremngf"
 #endif
 
-#define portno 5000
 
-map<long,map<string,double>> klinesCache; // key,value
-
-map<int,Candle> closed_candles; // kapanan mumlar
-double closed_prices[100];
-int RSI_PERIOD = 14;
+extern std::vector<Balance> balance_list;
+extern map<int,Candle> closed_candles; // kapanan mumlar
+double closed_prices[200];
 
 TA_RetCode rc;
 
 int closed_candle_len = 0;
 
-SOCKET s;
-WSADATA w;
+const char* ws_interval = "/ws/btcusdt@kline_1s";
 
-std::string closed_candles_to_json(const std::map<int, Candle>& myMap) {
-	Json::Value root;
-	// myMap veri yapısını dönüştürmek istiyoruz
-
-	for (const auto& [key, value] : myMap)
-	    {
-	        Json::Value candle(Json::objectValue);
-	        candle["Symbol"] = value.Symbol;
-	        candle["OpenPrice"] = value.OpenPrice;
-	        candle["ClosePrice"] = value.ClosePrice;
-	        candle["HighPrice"] = value.HighPrice;
-	        candle["LowPrice"] = value.LowPrice;
-	        candle["Volume"] = value.Volume;
-	        candle["IsCandleClosed"] = value.IsCandleClosed;
-	        root.append(candle);
-	    }
-	Json::StreamWriterBuilder builder;
-	builder["indentation"] = "    "; // Opsiyonel: Girinti seviyesi
-	std::string jsonStr = Json::writeString(builder, root);
-	return jsonStr;
-}
-
-
-//LISTENONPORT – Listens on a specified port for incoming connections
-//or data
-
-int ListenOnPort()
-{
-    int error = WSAStartup(0x0202, &w);  // Fill in WSA info
-
-    if (error)
-    {
-        return false;                     //For some reason we couldn't start Winsock
-    }
-
-    if (w.wVersion != 0x0202)             //Wrong Winsock version?
-    {
-        WSACleanup ();
-        return false;
-    }
-
-    SOCKADDR_IN addr;                     // The address structure for a TCP socket
-
-    addr.sin_family = AF_INET;            // Address family
-    addr.sin_port = htons (portno);       // Assign port to this socket
-
-    addr.sin_addr.s_addr = htonl (INADDR_ANY);
-
-    s = socket (AF_INET, SOCK_STREAM, IPPROTO_TCP); // Create socket
-
-    if (s == INVALID_SOCKET)
-    {
-        return false;                     //Don't continue if we couldn't create a //socket!!
-    }
-
-    if (bind(s, (LPSOCKADDR)&addr, sizeof(addr)) == SOCKET_ERROR)
-    {
-        return false;
-    }
-
-//    listen(s, SOMAXCONN);
-    if (listen(s, SOMAXCONN) < 0){
-      std::cout << "Listen Failed\n";
-      exit(EXIT_FAILURE);
-    }
-
-
-    // istekler kabul ediliyor.
-	struct sockaddr_in client_addr;
-	socklen_t boyut = sizeof(client_addr);
-	int new_client = accept(s, (struct sockaddr*)&client_addr, &boyut);
-	if(new_client < 0){
-		fprintf(stderr, "İsteklerin kabulü sırasında hata oluştu.");
-		return 1;
-	}
-	char client_ip[50];
-    inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, 50);
-    fprintf(stdout, client_ip);
-
-	while(1){
-		vector<char> buf(256);
-		int veri_boyutu = recv(new_client, buf.data(), buf.size(), 0);
-		if(veri_boyutu > 0){
-		    std::cout << buf.data() << std::endl;
-		    if (strcmp(buf.data(),"getTickets")==0){
-		    	send(new_client, closed_candles_to_json(closed_candles).c_str(), 1024, 0);
-		    }
-
-		} else {
-			return 1;
-		}
-	}
-
-
-
-
-
-
-
-    close(new_client);
-    close(s);
-
-    return true;
-    //Don't forget to clean up with CloseConnection()!
-}
-
-
-double calc_rsi(int startIdx, int endIDx, double* array) {
-	int outBegIdx;
-	int outNBElement;
-	double outReal[endIDx-startIdx-RSI_PERIOD+1] = {0,};
-
-	TA_RetCode rc = TA_RSI(startIdx, endIDx, array, RSI_PERIOD, &outBegIdx, &outNBElement, outReal);
-	if (rc != TA_SUCCESS){
-		std::cerr << "RSI::RSI: error on TA_RSI" << std::endl;
-		return -1;
-	}
-
-	return outReal[outNBElement-1];
-}
-
-double calc_ema(int startIdx, int endIDx, double* array) {
-	int outBegIdx;
-	int outNBElement;
-	double outReal[endIDx-startIdx-RSI_PERIOD+1] = {0,};
-	double *inReal = &closed_prices[0];
-
-	TA_RetCode rc = TA_EMA(startIdx, endIDx, array, RSI_PERIOD, &outBegIdx, &outNBElement, outReal);
-	if (rc != TA_SUCCESS){
-		std::cerr << "RSI::RSI: error on TA_RSI" << std::endl;
-		return -1;
-	}
-
-	return outReal[outNBElement-1];
-}
-
-std::vector<double> calc_macd(int startIdx, int endIDx, double* array) {
-	int outBegIdx;
-	int outNBElement;
-	std::vector<double> outMACD(closed_candle_len);
-	std::vector<double> outMACDSignal(closed_candle_len);
-	std::vector<double> outMACDHist(closed_candle_len);
-	TA_RetCode rc = TA_MACD(startIdx, endIDx, array, 12, 26, 9, &outBegIdx, &outNBElement, outMACD.data(), outMACDSignal.data(), outMACDHist.data());
-	if (rc != TA_SUCCESS){
-		std::cerr << "RSI::RSI: error on TA_RSI" << std::endl;
-		return {-1, -1, -1};
-	}
-
-	std::vector<double> outReal(3);
-	outReal[0] = outMACD[outNBElement-1];
-	outReal[1] = outMACDSignal[outNBElement-1];
-	outReal[2] = outMACDHist[outNBElement-1];
-	return outReal;
-}
-
-double calc_sma(int startIdx, int endIDx, double* array) {
-	int outBegIdx;
-	int outNBElement;
-	std::vector<double> outReal(closed_candle_len);
-
-	TA_RetCode rc = TA_SMA(startIdx, endIDx, array, 5, &outBegIdx, &outNBElement, outReal.data());
-	if (rc != TA_SUCCESS){
-		std::cerr << "RSI::RSI: error on TA_RSI" << std::endl;
-		return -1;
-	}
-
-	return outReal[outNBElement-1];
-}
-
-
-// 2 sn'de bir?? candle gelir, bu candle kapanmışsa kapanan candle'lara ekler (RSI hesaplanması için)
+// 1 sn'de bir?? candle gelir, bu candle kapanmışsa kapanan candle'lara ekler (RSI hesaplanması için)
 int ws_klines_onData( Json::Value &json_result ) {
 
 	// TODO her saniye account bilgisini çekmektense en başta,işlem yaptıktan sonra ve belli periyotta çekmek yeterli olur mu
@@ -270,8 +99,6 @@ int ws_klines_onData( Json::Value &json_result ) {
 			ema = calc_ema(0, closed_candle_len-1, closed_prices);
 			macd_all = calc_macd(0, closed_candle_len-1, closed_prices);
 		}
-
-
 	}
 
 	system("CLS");
@@ -289,7 +116,7 @@ int ws_klines_onData( Json::Value &json_result ) {
 	//{ PRINT VALUES | CÜZDAN
 	for ( int i  = 0 ; i < account_result["balances"].size() ; i++ ) {
 		Balance balance = Balance(account_result["balances"][i]);
-
+		balance_list[i] = balance;
 		std::cout << setw(6) << fixed << setprecision(3) << balance.Asset;
 		std::cout << setw(11) << balance.Free + balance.Locked;
 		std::cout << setw(11) << balance.Free;
@@ -334,13 +161,10 @@ int ws_klines_onData( Json::Value &json_result ) {
 
 //	std::cout << candle << std::endl;
 }
-int ws_userStream_OnData( Json::Value &json_result ) {
-	std::cout << json_result << std::endl;
-}
 
 int main() {
 
-    std::thread myThread(ListenOnPort);
+    std::thread myThread(&SocketConnection::run, SocketConnection());
 //	if (ret == false){
 //		std::cout << "Failed when trying to listening port" << std::endl;
 //	}
@@ -358,9 +182,8 @@ int main() {
 		return 0;
 	}
 
-
 	BinaCPP_websocket::init();
-	BinaCPP_websocket::connect_endpoint( ws_klines_onData ,"/ws/btcusdt@kline_1s");
+	BinaCPP_websocket::connect_endpoint(ws_klines_onData, ws_interval);
 	BinaCPP_websocket::enter_event_loop();
 
 

@@ -11,6 +11,7 @@
 
 std::vector<Balance> balance_list(8);
 std::map<int,Candle> closed_candles;
+bool is_someone_connected = false;
 
 #define PORTNO 5000
 
@@ -71,6 +72,7 @@ void SocketConnection::run() {
 }
 
 void SocketConnection::talk_with_client(SOCKET socket, int new_client) {
+	is_someone_connected = true;
 	while(1) {
 		std::vector<char> buf(256);
 		int veri_boyutu = recv(new_client, buf.data(), buf.size(), 0);
@@ -80,6 +82,7 @@ void SocketConnection::talk_with_client(SOCKET socket, int new_client) {
 		    	send(new_client, jsonStr.c_str(), jsonStr.size(), 0);
 		    }
 		} else {
+			is_someone_connected = false;
 		    close(new_client);
 		    close(socket);
 		    break;

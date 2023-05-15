@@ -51,6 +51,8 @@
 #include "indicators.h"
 #include "SocketConnection.h"
 
+#include <ctime>
+
 #define TESTNET 1 // testnet api key'leri ve endpoint'leri farklı oluyor
 
 #if TESTNET
@@ -64,6 +66,7 @@
 
 extern std::vector<Balance> balance_list;
 extern map<int,Candle> closed_candles; // kapanan mumlar
+extern bool is_someone_connected;
 double closed_prices[200];
 
 TA_RetCode rc;
@@ -72,9 +75,23 @@ int closed_candle_len = 0;
 
 const char* ws_interval = "/ws/btcusdt@kline_1s";
 
-// 1 sn'de bir?? candle gelir, bu candle kapanmışsa kapanan candle'lara ekler (RSI hesaplanması için)
-int ws_klines_onData( Json::Value &json_result ) {
 
+void printTime() {
+	std::time_t t = std::time(0);   // get time now
+	std::tm* now = std::localtime(&t);
+    std::cout << std::setfill('0');
+	std::cout << (now->tm_year + 1900) << '-'
+		 << std::setw(2) << (now->tm_mon + 1) << '-'
+		 << std::setw(2) << now->tm_mday
+		 << " ";
+    std::cout << std::setfill('0');
+    std::cout << std::setw(2) << now->tm_hour << ":";
+    std::cout << std::setw(2) << now->tm_min << ":";
+    std::cout << std::setw(2) << now->tm_sec;
+}
+
+// 1 sn'de bir candle gelir, bu candle kapanmışsa kapanan candle'lara ekler (RSI hesaplanması için)
+int ws_klines_onData(Json::Value &json_result) {
 	// TODO her saniye account bilgisini çekmektense en başta,işlem yaptıktan sonra ve belli periyotta çekmek yeterli olur mu
 	Json::Value account_result;
 	long recvWindow = 10000;
@@ -101,9 +118,16 @@ int ws_klines_onData( Json::Value &json_result ) {
 		}
 	}
 
+//	system("chcp 65001"); //ekranda türkçe karakterlerin doğru gözükmesi için
 	system("CLS");
 
 
+	printTime();
+
+	if (is_someone_connected)
+		std::cout << setfill(' ') << setw(65) << FGRN("Arayüze aktarılıyor\n");
+	else
+		std::cout << setfill(' ') << setw(65) << FRED("Arayüze aktarılmıyor\n");
 	//{ PRINT TITLES | CÜZDAN
 	std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
 	std::cout << setw(6)  << "asset";
@@ -163,7 +187,6 @@ int ws_klines_onData( Json::Value &json_result ) {
 }
 
 int main() {
-
     std::thread myThread(&SocketConnection::run, SocketConnection());
 //	if (ret == false){
 //		std::cout << "Failed when trying to listening port" << std::endl;

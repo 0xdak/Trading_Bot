@@ -8,7 +8,7 @@
 
 
 /* FOREGROUND */
-#define RST  "\x1B[0m"
+#define RST   "\x1B[0m"
 #define KRED  "\x1B[31m"
 #define KGRN  "\x1B[32m"
 #define KYEL  "\x1B[33m"
@@ -63,6 +63,8 @@
 	#define SEC_KEY "z2FiYxCNRueHbtvrUBHLMGTqTMfY2g2zdXBMLsnt8N5pnZvEgBqzauvJ0Sremngf"
 #endif
 
+#define RSI_OVERBOUGHT 70
+#define RSI_OVERSOLD 30
 
 extern std::vector<Balance> balance_list;
 extern map<int,Candle> closed_candles; // kapanan mumlar
@@ -73,14 +75,14 @@ TA_RetCode rc;
 
 int closed_candle_len = 0;
 
-const char* ws_interval = "/ws/btcusdt@kline_1s";
-
+const char* ws_interval = "/ws/btcusdt@kline_1m";
+bool close_websocket = false;
 
 void printTime() {
 	std::time_t t = std::time(0);   // get time now
 	std::tm* now = std::localtime(&t);
     std::cout << std::setfill('0');
-	std::cout << (now->tm_year + 1900) << '-'
+	std::cout << "\n " << (now->tm_year + 1900) << '-'
 		 << std::setw(2) << (now->tm_mon + 1) << '-'
 		 << std::setw(2) << now->tm_mday
 		 << " ";
@@ -92,6 +94,11 @@ void printTime() {
 
 // 1 sn'de bir candle gelir, bu candle kapanmışsa kapanan candle'lara ekler (RSI hesaplanması için)
 int ws_klines_onData(Json::Value &json_result) {
+	if (close_websocket) {
+		std::cout << close_websocket <<"\n";
+		return -1;
+	}
+
 	// TODO her saniye account bilgisini çekmektense en başta,işlem yaptıktan sonra ve belli periyotta çekmek yeterli olur mu
 	Json::Value account_result;
 	long recvWindow = 10000;
@@ -110,12 +117,6 @@ int ws_klines_onData(Json::Value &json_result) {
 		closed_prices[closed_candle_len] = candle.ClosePrice;
 		closed_candles[closed_candle_len++] = candle;
 
-		if (closed_candle_len > RSI_PERIOD){
-			rsi = calc_rsi(0, closed_candle_len-1, closed_prices);
-			sma = calc_sma(0, closed_candle_len-1, closed_prices);
-			ema = calc_ema(0, closed_candle_len-1, closed_prices);
-			macd_all = calc_macd(0, closed_candle_len-1, closed_prices);
-		}
 	}
 
 //	system("chcp 65001"); //ekranda türkçe karakterlerin doğru gözükmesi için
@@ -128,12 +129,13 @@ int ws_klines_onData(Json::Value &json_result) {
 		std::cout << setfill(' ') << setw(65) << FGRN("Arayüze aktarılıyor\n");
 	else
 		std::cout << setfill(' ') << setw(65) << FRED("Arayüze aktarılmıyor\n");
+
 	//{ PRINT TITLES | CÜZDAN
-	std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
-	std::cout << setw(6)  << "asset";
-	std::cout << setw(11) << "price";
-	std::cout << setw(11) << "free";
-	std::cout << setw(7)  << "locked";
+	std::cout << setfill('-') << setw(75) << " " << std::endl << setfill(' ');
+	std::cout << setw(6)  << KYEL << "asset" << RST;
+	std::cout << setw(11) << KCYN << "price" <<  RST;
+	std::cout << setw(12) << KGRN << "free" << RST;
+	std::cout << setw(8)  << KRED << "locked" << RST;
 	std::cout << std::endl;
 	//}
 
@@ -141,21 +143,22 @@ int ws_klines_onData(Json::Value &json_result) {
 	for ( int i  = 0 ; i < account_result["balances"].size() ; i++ ) {
 		Balance balance = Balance(account_result["balances"][i]);
 		balance_list[i] = balance;
-		std::cout << setw(6) << fixed << setprecision(3) << balance.Asset;
-		std::cout << setw(11) << balance.Free + balance.Locked;
-		std::cout << setw(11) << balance.Free;
-		std::cout << setw(7) << balance.Locked;
+		std::cout << fixed << setprecision(3) << KYEL << setw(6) << balance.Asset << RST;
+		std::cout <<  KCYN << setw(11) << balance.Free + balance.Locked << RST;
+		std::cout << KGRN << setw(11) << balance.Free << RST;
+		std::cout << KRED << setw(9) << balance.Locked << RST;
 		std::cout <<std::endl;
 	}
 	//}
 
 	//{ PRINT DASHES
-	std::cout << setfill('-') << setw(55) << " " << std::endl << setfill(' ');
+	std::cout << setfill('-') << setw(75) << " " << std::endl << setfill(' ');
 	//}
 
 
 	//{ PRINT TITLES | VARLIK VE STRATEJİLER
-	std::cout << setw(7) << candle.Symbol << std::endl;
+	std::cout << " " << KCYN << setw(7) << candle.Symbol << RST;
+	std::cout << "  | " << KBLU << closed_candle_len << RST " adet mum verisi alındı." << std::endl << std::endl;
 	std::cout << setw(10) << "price";
 	std::cout << setw(10) << "RSI";
 	std::cout << setw(10) << "SMA";
@@ -171,22 +174,49 @@ int ws_klines_onData(Json::Value &json_result) {
 
 	//{ PRINT VALUES | VARLIK VE STRATEJİLER
 
-	std::cout << setw(10) << candle.ClosePrice;
-	std::cout << setw(10) << rsi;
-	std::cout << setw(10) << sma;
-	std::cout << setw(10) << ema;
-	std::cout << setw(10) << macd_all[0];
-	std::cout << setw(10) << macd_all[1];
-	std::cout << setw(10) << macd_all[2];
+	for (int i = closed_candle_len-1; i > closed_candle_len-4; i--) {
+		if (i == closed_candle_len-1)
+			std::cout << KYEL;
 
-	std::cout <<std::endl;
+
+		if (closed_candle_len > RSI_PERIOD){
+			rsi = calc_rsi(0, i, closed_prices);
+			sma = calc_sma(0, i, closed_prices);
+			ema = calc_ema(0, i, closed_prices);
+			macd_all = calc_macd(0, i, closed_prices);
+		}
+
+		std::cout << setw(10) << closed_prices[i];
+		if (RSI_OVERSOLD < rsi && RSI_OVERBOUGHT > rsi)
+			std::cout << KGRN << setw(10) << rsi << RST;
+		else
+			std::cout << setw(10) << rsi;
+
+		if (i == closed_candle_len-1)
+			std::cout << KYEL;
+		std::cout << setw(10) << sma;
+		std::cout << setw(10) << ema;
+		std::cout << setw(10) << macd_all[0];
+		std::cout << setw(10) << macd_all[1];
+		std::cout << setw(10) << macd_all[2];
+
+		std::cout <<std::endl << RST;
+
+	}
+
 	//}
 
 
 //	std::cout << candle << std::endl;
 }
 
+void init_websocket(){
+	BinaCPP_websocket::init();
+	BinaCPP_websocket::connect_endpoint(ws_klines_onData, ws_interval);
+	BinaCPP_websocket::enter_event_loop();
+}
 int main() {
+	system("chcp 65001");
     std::thread myThread(&SocketConnection::run, SocketConnection());
 //	if (ret == false){
 //		std::cout << "Failed when trying to listening port" << std::endl;
@@ -205,10 +235,8 @@ int main() {
 		return 0;
 	}
 
-	BinaCPP_websocket::init();
-	BinaCPP_websocket::connect_endpoint(ws_klines_onData, ws_interval);
-	BinaCPP_websocket::enter_event_loop();
-
+	init_websocket();
+//    websocket_w.join();
 
 	return 0;
 }
